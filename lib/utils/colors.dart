@@ -1,42 +1,58 @@
 import 'package:flutter/material.dart';
 
-// Amuma Health App Color Palette - Blue & Orange Theme
-const primary = Color(0xFF00537A); // Deep Blue - Main brand color
-const primaryLight = Color(0xFFA8E8F9); // Light Blue - Accents and backgrounds
-const primaryDark = Color(0xFF013C58); // Darker Blue - Emphasis and headers
+// Relativeasy App Color Palette - Space & Science Theme
+const primary = Color(0xFF1A1A2E); // Deep Space Blue - Main brand color
+const primaryLight = Color(0xFF16213E); // Dark Blue - Accents and backgrounds
+const primaryDark = Color(0xFF0F0F23); // Darker Blue - Emphasis and headers
 
 const accent =
-    Color(0xFFFFBA42); // Bright Orange - Call-to-action and highlights
-const accentLight = Color(0xFFFFF35B); // Light Yellow - Secondary highlights
-const accentDark = Color(0xFFF5A201); // Dark Orange - Active states
+    Color(0xFF00D4FF); // Electric Blue - Call-to-action and highlights
+const accentLight = Color(0xFF7FEFFF); // Light Blue - Secondary highlights
+const accentDark = Color(0xFF0099CC); // Dark Blue - Active states
 
-const background = Color(0xFFFAFAFA); // Very light background
-const surface = Color(0xFFFFFFFF); // Surface color (white)
-const surfaceBlue = Color(0xFFF0F8FF); // Light blue surface for health cards
+const secondary = Color(0xFFFF6B35); // Cosmic Orange - Secondary accent
+const secondaryLight = Color(0xFFFF8C69); // Light Orange
+const secondaryDark = Color(0xFFE55A2B); // Dark Orange
 
-const textPrimary = Color(0xFF013C58); // Dark blue for main text
-const textSecondary = Color(0xFF00537A); // Medium blue for secondary text
-const textLight = Color(
-    0xFF666666); // Grey for light text - redefined for backward compatibility
-const textOnPrimary = Color(0xFFFFFFFF); // White text on blue backgrounds
-const textOnAccent = Color(0xFF013C58); // Dark blue text on orange backgrounds
+const background = Color(0xFF0A0A0A); // Deep black background
+const surface = Color(0xFF1E1E1E); // Dark surface color
+const surfaceLight = Color(0xFF2A2A2A); // Lighter surface for cards
 
-// Health-specific colors
-const healthGreen = Color(0xFF4CAF50); // For positive health indicators
-const healthRed = Color(0xFFE57373); // For alerts and warnings (softer red)
-const healthYellow = Color(0xFFFFB74D); // For caution states
+const textPrimary = Color(0xFFFFFFFF); // White for main text
+const textSecondary = Color(0xFFB0B0B0); // Light grey for secondary text
+const textLight = Color(0xFF808080); // Grey for light text
+const textOnPrimary = Color(0xFFFFFFFF); // White text on dark backgrounds
+const textOnAccent = Color(0xFF000000); // Black text on bright backgrounds
+
+// Physics/Science specific colors
+const successGreen =
+    Color(0xFF00FF7F); // For correct answers and positive results
+const errorRed = Color(0xFFFF4444); // For errors and warnings
+const warningYellow = Color(0xFFFFD700); // For caution states
+const infoBlue = Color(0xFF00BFFF); // For information and hints
+
+// Special relativistic colors
+const lightSpeedGold = Color(0xFFFFD700); // Represents speed of light
+const timeDilationPurple = Color(0xFF9932CC); // For time dilation effects
+const lengthContractionCyan =
+    Color(0xFF00FFFF); // For length contraction effects
 
 // Legacy colors (keeping for backward compatibility)
-const secondary = Color(0xFF00537A); // Medium Blue
-const darkPrimary = Color(0xFF013C58); // Dark Blue
+const darkPrimary = Color(0xFF0F0F23); // Dark Blue
 const black = Color(0xFF000000); // Black
 const white = Color(0xFFFFFFFF); // White
-const grey = Color(0xFFE0E0E0); // Light Grey
+const grey = Color(0xFF404040); // Dark Grey
 
-// New color aliases for easier migration
+// New color aliases for easier usage
 const buttonText = textOnPrimary; // White text for buttons
 const textGrey = textLight; // Grey text
-const textDark = textPrimary; // Dark text
+const textDark = textPrimary; // White text (inverted for dark theme)
+
+// Badge colors for achievement system
+const badgeGold = Color(0xFFFFD700);
+const badgeSilver = Color(0xFFC0C0C0);
+const badgeBronze = Color(0xFFCD7F32);
+const badgeSpecial = Color(0xFFFF69B4);
 
 TimeOfDay parseTime(String timeString) {
   List<String> parts = timeString.split(':');

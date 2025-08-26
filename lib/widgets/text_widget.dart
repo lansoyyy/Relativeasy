@@ -10,6 +10,7 @@ class TextWidget extends StatelessWidget {
   final bool? isBold;
   final int? maxLines;
   final TextAlign align;
+  final FontWeight? fontWeight;
 
   TextWidget(
       {super.key,
@@ -21,6 +22,7 @@ class TextWidget extends StatelessWidget {
       required this.text,
       required this.fontSize,
       this.color = Colors.black,
+      this.fontWeight,
       this.fontFamily = 'Regular'});
 
   @override
@@ -34,7 +36,7 @@ class TextWidget extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           fontStyle: isItalize! ? FontStyle.italic : null,
           decoration: decoration,
-          fontWeight: isBold! ? FontWeight.w800 : FontWeight.normal,
+          fontWeight: fontWeight,
           fontSize: fontSize,
           color: color,
           fontFamily: fontFamily),
