@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:relativeasy/screens/main_screen.dart';
+import 'package:relativeasy/screens/splash_screen.dart'; // Changed from main_screen to splash_screen
 import 'package:relativeasy/utils/colors.dart';
 import 'package:relativeasy/providers/app_state_provider.dart';
 
@@ -62,7 +62,7 @@ class MyApp extends StatelessWidget {
           fontFamily: 'Regular',
           useMaterial3: true,
         ),
-        home: const MainScreen(),
+        home: const SplashScreen(), // Changed from MainScreen to SplashScreen
       ),
     );
   }
