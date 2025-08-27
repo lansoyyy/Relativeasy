@@ -188,7 +188,6 @@ class _SignupScreenState extends State<SignupScreen> {
                         }
                         return null;
                       },
-                      onEditingComplete: _signup,
                     ),
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 16),
