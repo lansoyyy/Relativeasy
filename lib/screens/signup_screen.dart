@@ -54,14 +54,14 @@ class _SignupScreenState extends State<SignupScreen> {
             MaterialPageRoute(builder: (context) => const MainScreen()),
           );
         }
-      } else {
-        setState(() {
-          _errorMessage = 'Failed to create account. Please try again.';
-        });
       }
+    } on Exception catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      });
     } catch (e) {
       setState(() {
-        _errorMessage = 'An error occurred. Please try again.';
+        _errorMessage = 'An unexpected error occurred. Please try again.';
       });
     } finally {
       if (mounted) {

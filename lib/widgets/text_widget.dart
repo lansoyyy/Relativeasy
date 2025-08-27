@@ -11,12 +11,14 @@ class TextWidget extends StatelessWidget {
   final int? maxLines;
   final TextAlign align;
   final FontWeight? fontWeight;
+  final TextOverflow? overflow;
 
   TextWidget(
       {super.key,
       this.decoration,
       this.align = TextAlign.start,
-      this.maxLines = 2,
+      this.maxLines,
+      this.overflow,
       this.isItalize = false,
       this.isBold = false,
       required this.text,
@@ -30,10 +32,10 @@ class TextWidget extends StatelessWidget {
     return Text(
       text,
       textAlign: align,
-      maxLines: 20,
+      maxLines: maxLines,
       style: TextStyle(
           letterSpacing: 0,
-          overflow: TextOverflow.ellipsis,
+          overflow: overflow ?? TextOverflow.ellipsis,
           fontStyle: isItalize! ? FontStyle.italic : null,
           decoration: decoration,
           fontWeight: fontWeight,

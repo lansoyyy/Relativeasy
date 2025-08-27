@@ -15,11 +15,35 @@ class LeaderboardScreen extends StatefulWidget {
 class _LeaderboardScreenState extends State<LeaderboardScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+
+    // Move data loading to initState instead of during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadLeaderboardData();
+    });
+  }
+
+  // Extract the loading logic to a separate method
+  Future<void> _loadLeaderboardData() async {
+    final provider = Provider.of<AppStateProvider>(context, listen: false);
+    if (provider.leaderboard == null && !_isLoading) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      await provider.refreshLeaderboard();
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -32,6 +56,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   Widget build(BuildContext context) {
     return Consumer<AppStateProvider>(
       builder: (context, provider, child) {
+        // Remove the conditional loading logic from the build method
+
         return Scaffold(
           backgroundColor: background,
           appBar: AppBar(
@@ -46,8 +72,16 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
             actions: [
               IconButton(
                 icon: const FaIcon(FontAwesomeIcons.arrowsRotate),
-                onPressed: () {
-                  provider.refreshLeaderboard();
+                onPressed: () async {
+                  setState(() {
+                    _isLoading = true;
+                  });
+                  await provider.refreshLeaderboard();
+                  if (mounted) {
+                    setState(() {
+                      _isLoading = false;
+                    });
+                  }
                 },
               ),
             ],
@@ -62,36 +96,78 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               unselectedLabelColor: textSecondary,
             ),
           ),
-          body: provider.leaderboard == null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(color: accent),
-                      SizedBox(height: 16),
-                      TextWidget(
-                        text: 'Loading leaderboard...',
-                        fontSize: 16,
-                        color: textSecondary,
-                      ),
-                    ],
-                  ),
-                )
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildLeaderboardList(
-                      provider.leaderboard!.allTimeLeaders,
-                      isWeekly: false,
-                    ),
-                    _buildLeaderboardList(
-                      provider.leaderboard!.weeklyLeaders,
-                      isWeekly: true,
-                    ),
-                  ],
-                ),
+          body: _buildBody(provider),
         );
       },
+    );
+  }
+
+  Widget _buildBody(AppStateProvider provider) {
+    // Show loading indicator
+    if (provider.leaderboard == null && _isLoading) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: accent),
+            SizedBox(height: 16),
+            TextWidget(
+              text: 'Loading leaderboard...',
+              fontSize: 16,
+              color: textSecondary,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show error state
+    if (provider.leaderboard == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            FaIcon(FontAwesomeIcons.triangleExclamation,
+                color: errorRed, size: 48),
+            SizedBox(height: 16),
+            TextWidget(
+              text: 'Failed to load leaderboard',
+              fontSize: 16,
+              color: textSecondary,
+            ),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadLeaderboardData,
+              child: TextWidget(
+                text: 'Retry',
+                fontSize: 16,
+                color: textOnAccent,
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show leaderboard data
+    return TabBarView(
+      controller: _tabController,
+      children: [
+        _buildLeaderboardList(
+          provider.leaderboard!.allTimeLeaders,
+          isWeekly: false,
+        ),
+        _buildLeaderboardList(
+          provider.leaderboard!.weeklyLeaders,
+          isWeekly: true,
+        ),
+      ],
     );
   }
 
@@ -154,7 +230,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   Widget _buildPodium(List<Map<String, dynamic>> topThree) {
     return Container(
-      height: 200,
+      height: 250, // Increased height to provide more space
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -168,9 +244,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (topThree.length > 1) _buildPodiumPosition(topThree[1], 2, 120),
-          if (topThree.isNotEmpty) _buildPodiumPosition(topThree[0], 1, 150),
-          if (topThree.length > 2) _buildPodiumPosition(topThree[2], 3, 100),
+          if (topThree.length > 1) _buildPodiumPosition(topThree[1], 2, 40),
+          if (topThree.isNotEmpty) _buildPodiumPosition(topThree[0], 1, 70),
+          if (topThree.length > 2) _buildPodiumPosition(topThree[2], 3, 20),
         ],
       ),
     );
@@ -201,6 +277,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
       children: [
         FaIcon(medal, color: positionColor, size: 24),
         const SizedBox(height: 8),
@@ -222,17 +299,26 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           ),
         ),
         const SizedBox(height: 8),
-        TextWidget(
-          text: user['username'],
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: textPrimary,
-          align: TextAlign.center,
-        ),
-        TextWidget(
-          text: '${user['xp']} XP',
-          fontSize: 10,
-          color: textSecondary,
+        Container(
+          width: 80, // Increased width to prevent overflow
+          child: Column(
+            children: [
+              TextWidget(
+                text: user['username'],
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: textPrimary,
+                align: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              TextWidget(
+                text: '${user['xp']} XP',
+                fontSize: 10,
+                color: textSecondary,
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
         Container(
@@ -319,11 +405,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               children: [
                 Row(
                   children: [
-                    TextWidget(
-                      text: user['username'],
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: isCurrentUser ? accent : textPrimary,
+                    Flexible(
+                      child: TextWidget(
+                        text: user['username'],
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isCurrentUser ? accent : textPrimary,
+                      ),
                     ),
                     if (isCurrentUser) ...[
                       const SizedBox(width: 8),

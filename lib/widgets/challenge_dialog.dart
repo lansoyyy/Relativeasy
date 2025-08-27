@@ -13,10 +13,12 @@ import '../widgets/app_text_form_field.dart';
 
 class ChallengeDialog extends StatefulWidget {
   final DailyChallenge challenge;
+  final Function(bool isCorrect)? onChallengeCompleted;
 
   const ChallengeDialog({
     super.key,
     required this.challenge,
+    this.onChallengeCompleted,
   });
 
   @override
@@ -90,6 +92,14 @@ class _ChallengeDialogState extends State<ChallengeDialog>
       final provider = Provider.of<AppStateProvider>(context, listen: false);
       provider.completeDailyChallenge(widget.challenge.id, userAnswer);
 
+      // Call the completion callback if provided
+      if (widget.onChallengeCompleted != null) {
+        // Slight delay to ensure state is updated
+        Future.delayed(Duration.zero, () {
+          widget.onChallengeCompleted!(true);
+        });
+      }
+
       // Auto-close after success
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) Navigator.of(context).pop();
@@ -97,6 +107,11 @@ class _ChallengeDialogState extends State<ChallengeDialog>
     } else {
       _shakeController.forward().then((_) => _shakeController.reset());
       HapticFeedback.heavyImpact();
+
+      // Call the completion callback if provided
+      if (widget.onChallengeCompleted != null) {
+        widget.onChallengeCompleted!(false);
+      }
     }
   }
 

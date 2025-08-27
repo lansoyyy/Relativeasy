@@ -1,21 +1,164 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/app_state_provider.dart';
 import '../utils/colors.dart';
 import '../utils/const.dart';
 import '../widgets/text_widget.dart';
 import '../widgets/button_widget.dart';
 import '../widgets/challenge_dialog.dart';
+import '../models/daily_challenge.dart';
+import '../models/calculation_result.dart';
+import '../models/daily_challenge.dart';
 
-class ChallengesScreen extends StatelessWidget {
+class ChallengesScreen extends StatefulWidget {
   const ChallengesScreen({super.key});
+
+  @override
+  State<ChallengesScreen> createState() => _ChallengesScreenState();
+}
+
+class _ChallengesScreenState extends State<ChallengesScreen> {
+  bool _isLoading = false;
+  bool _isSyncing = false;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _syncChallengesWithCloud();
+  }
+
+  Future<void> _syncChallengesWithCloud() async {
+    setState(() {
+      _isSyncing = true;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // Load challenges from Firestore
+        final snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('challenges')
+            .orderBy('date')
+            .get();
+
+        final provider = Provider.of<AppStateProvider>(context, listen: false);
+        final challenges = provider.dailyChallenges;
+
+        // Update local challenges with cloud data
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          final challengeId = data['id'];
+
+          // Find matching local challenge
+          final localChallengeIndex =
+              challenges.indexWhere((c) => c.id == challengeId);
+          if (localChallengeIndex != -1 && data['isCompleted'] == true) {
+            // Update local challenge with completion data
+            final updatedChallenge = DailyChallenge(
+              id: data['id'],
+              title: data['title'],
+              question: data['question'],
+              difficulty: DifficultyLevel.values[data['difficulty']],
+              type: CalculationType.values[data['type']],
+              expectedAnswer: data['expectedAnswer'].toDouble(),
+              unit: data['unit'],
+              parameters: Map<String, dynamic>.from(data['parameters']),
+              explanation: data['explanation'],
+              hint: data['hint'],
+              date: DateTime.parse(data['date']),
+              isCompleted: data['isCompleted'],
+              userAnswer: data['userAnswer']?.toDouble(),
+              isCorrect: data['isCorrect'],
+              completedAt: data['completedAt'] != null
+                  ? DateTime.parse(data['completedAt'])
+                  : null,
+            );
+
+            challenges[localChallengeIndex] = updatedChallenge;
+          }
+        }
+
+        provider.notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error syncing challenges with cloud: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveChallengeToCloud(DailyChallenge challenge) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('challenges')
+            .doc(challenge.id)
+            .set(challenge.toJson());
+      }
+    } catch (e) {
+      debugPrint('Error saving challenge to cloud: $e');
+    }
+  }
+
+  Future<void> _navigateToNextChallenge(
+      BuildContext context, AppStateProvider provider) async {
+    // Find the next uncompleted challenge
+    final completedChallengeIds = provider.dailyChallenges
+        .where((c) => c.isCompleted)
+        .map((c) => c.id)
+        .toSet();
+
+    // Get uncompleted challenges and sort by difficulty level
+    final uncompletedChallenges = provider.dailyChallenges
+        .where((c) => !completedChallengeIds.contains(c.id))
+        .toList();
+
+    // Sort by difficulty (beginner first, then intermediate, then expert)
+    uncompletedChallenges
+        .sort((a, b) => a.difficulty.index.compareTo(b.difficulty.index));
+
+    final nextChallenge =
+        uncompletedChallenges.isNotEmpty ? uncompletedChallenges.first : null;
+
+    if (nextChallenge != null) {
+      // Show the next challenge dialog
+      _showChallengeDialog(context, nextChallenge, provider);
+    } else {
+      // All challenges completed
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: TextWidget(
+            text:
+                'Great job! You\'ve completed all available challenges. Check back tomorrow for new ones!',
+            fontSize: 14,
+            color: Colors.white,
+          ),
+          backgroundColor: successGreen,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AppStateProvider>(
       builder: (context, provider, child) {
         return Scaffold(
+          key: _scaffoldKey,
           backgroundColor: background,
           appBar: AppBar(
             title: TextWidget(
@@ -26,6 +169,25 @@ class ChallengesScreen extends StatelessWidget {
             ),
             backgroundColor: primary,
             elevation: 0,
+            actions: [
+              if (_isSyncing)
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(textOnPrimary),
+                    ),
+                  ),
+                )
+              else
+                IconButton(
+                  icon: const FaIcon(FontAwesomeIcons.sync),
+                  onPressed: _syncChallengesWithCloud,
+                ),
+            ],
           ),
           body: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -37,8 +199,7 @@ class ChallengesScreen extends StatelessWidget {
                 const SizedBox(height: 24),
 
                 // Today's challenge
-                _buildTodaysChallenge(
-                    context, provider), // Added context parameter
+                _buildTodaysChallenge(context, provider),
                 const SizedBox(height: 24),
 
                 // Difficulty levels
@@ -71,11 +232,22 @@ class ChallengesScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextWidget(
-            text: 'Your Progress',
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: textOnAccent,
+          Row(
+            children: [
+              TextWidget(
+                text: 'Your Progress',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: textOnAccent,
+              ),
+              const Spacer(),
+              TextWidget(
+                text: 'Level ${stats['currentLevel']}',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: textOnAccent,
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           Row(
@@ -91,8 +263,44 @@ class ChallengesScreen extends StatelessWidget {
                   FontAwesomeIcons.bullseye),
             ],
           ),
+          const SizedBox(height: 16),
+          // XP Progress bar
+          _buildXPProgress(stats),
         ],
       ),
+    );
+  }
+
+  Widget _buildXPProgress(Map<String, dynamic> stats) {
+    final currentLevel = stats['currentLevel'];
+    final xpForNextLevel = currentLevel * 100; // Simple formula for XP needed
+    final currentXPInLevel = stats['totalXP'] % 100;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            TextWidget(
+              text: 'XP: $currentXPInLevel/$xpForNextLevel',
+              fontSize: 12,
+              color: textOnAccent,
+            ),
+            TextWidget(
+              text: 'Next Level',
+              fontSize: 12,
+              color: textOnAccent,
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        LinearProgressIndicator(
+          value: currentXPInLevel / xpForNextLevel,
+          backgroundColor: textOnAccent.withOpacity(0.3),
+          valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+        ),
+      ],
     );
   }
 
@@ -118,7 +326,6 @@ class ChallengesScreen extends StatelessWidget {
 
   Widget _buildTodaysChallenge(
       BuildContext context, AppStateProvider provider) {
-    // Added BuildContext parameter
     final challenge = provider.getTodaysChallenge();
 
     if (challenge == null) {
@@ -255,6 +462,38 @@ class ChallengesScreen extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: ButtonWidget(
+                    label: 'Next Challenge',
+                    onPressed: () {
+                      final BuildContext? contextRef =
+                          _scaffoldKey.currentContext;
+                      if (contextRef != null) {
+                        _navigateToNextChallenge(contextRef, provider);
+                      }
+                    },
+                    color: accent,
+                    textColor: textOnAccent,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 1,
+                  child: ButtonWidget(
+                    label: '?',
+                    onPressed: () {
+                      _showExplanationDialog(context, challenge);
+                    },
+                    color: infoBlue,
+                    textColor: textOnAccent,
+                  ),
+                ),
+              ],
+            ),
           ],
         ],
       ),
@@ -351,12 +590,13 @@ class ChallengesScreen extends StatelessWidget {
           color: textPrimary,
         ),
         const SizedBox(height: 16),
-        ...challenges.map((challenge) => _buildChallengeListItem(challenge)),
+        ...challenges
+            .map((challenge) => _buildChallengeListItem(challenge, provider)),
       ],
     );
   }
 
-  Widget _buildChallengeListItem(challenge) {
+  Widget _buildChallengeListItem(challenge, AppStateProvider provider) {
     Color difficultyColor = _getDifficultyColor(challenge.difficulty);
 
     return Container(
@@ -407,6 +647,12 @@ class ChallengesScreen extends StatelessWidget {
               color: challenge.isCorrect == true ? successGreen : errorRed,
               size: 16,
             ),
+          ] else ...[
+            FaIcon(
+              FontAwesomeIcons.lockOpen,
+              color: accent,
+              size: 16,
+            ),
           ],
         ],
       ),
@@ -418,7 +664,118 @@ class ChallengesScreen extends StatelessWidget {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => ChallengeDialog(challenge: challenge),
+      builder: (context) => ChallengeDialog(
+        challenge: challenge,
+        onChallengeCompleted: (bool isCorrect) {
+          // This callback will be called when the challenge is completed
+          if (isCorrect) {
+            // Save challenge to cloud immediately
+            _saveChallengeToCloud(challenge);
+
+            // Wait for the dialog to close
+            Future.delayed(const Duration(seconds: 3), () {
+              // Store the context reference for later use
+              final BuildContext? contextRef = _scaffoldKey.currentContext;
+              if (mounted && contextRef != null) {
+                // Show option to proceed to next challenge
+                showDialog(
+                  context: contextRef,
+                  builder: (BuildContext dialogContext) => AlertDialog(
+                    backgroundColor: surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: TextWidget(
+                      text: 'Challenge Completed!',
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: textPrimary,
+                    ),
+                    content: TextWidget(
+                      text: 'Would you like to proceed to the next challenge?',
+                      fontSize: 14,
+                      color: textSecondary,
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: TextWidget(
+                          text: 'Later',
+                          fontSize: 14,
+                          color: textSecondary,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          // Use a slight delay to ensure dialog is fully closed
+                          Future.delayed(const Duration(milliseconds: 100), () {
+                            if (mounted) {
+                              // Get fresh context reference
+                              final BuildContext? freshContext =
+                                  _scaffoldKey.currentContext;
+                              if (freshContext != null) {
+                                _navigateToNextChallenge(
+                                    freshContext, provider);
+                              }
+                            }
+                          });
+                        },
+                        child: TextWidget(
+                          text: 'Next Challenge',
+                          fontSize: 14,
+                          color: accent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            });
+          }
+        },
+      ),
+    ).then((_) {
+      // Only sync the challenge to cloud if not already synced in the callback
+      if (challenge.isCompleted && challenge.isCorrect != true) {
+        _saveChallengeToCloud(challenge);
+      }
+    });
+  }
+
+  void _showExplanationDialog(BuildContext context, DailyChallenge challenge) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: TextWidget(
+          text: 'Explanation',
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: textPrimary,
+        ),
+        content: SingleChildScrollView(
+          child: TextWidget(
+            text: challenge.explanation,
+            fontSize: 14,
+            color: textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: TextWidget(
+              text: 'Close',
+              fontSize: 14,
+              color: accent,
+            ),
+          ),
+        ],
+        backgroundColor: surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
     );
   }
 

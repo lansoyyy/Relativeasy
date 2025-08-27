@@ -1,13 +1,90 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide User;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/app_state_provider.dart';
+import '../services/auth_service.dart';
+import '../models/user.dart' as app_user;
 import '../utils/colors.dart';
 import '../widgets/text_widget.dart';
 import '../widgets/button_widget.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  app_user.User? _firebaseUser;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+  Future<void> _fetchUserData() async {
+    try {
+      final currentUser = AuthService.instance.currentUser;
+      if (currentUser != null) {
+        setState(() {
+          _firebaseUser = currentUser;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final firebaseUser = FirebaseAuth.instance.currentUser;
+      if (firebaseUser != null) {
+        // Fetch user data from Firestore
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(firebaseUser.uid)
+            .get();
+
+        if (doc.exists) {
+          final data = doc.data()!;
+          setState(() {
+            _firebaseUser = app_user.User(
+              id: firebaseUser.uid,
+              name: data['name'] ?? firebaseUser.displayName ?? 'User',
+              email: firebaseUser.email ?? '',
+            );
+            _isLoading = false;
+          });
+        } else {
+          setState(() {
+            _firebaseUser = app_user.User(
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName ?? 'User',
+              email: firebaseUser.email ?? '',
+            );
+            _isLoading = false;
+          });
+        }
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _logout() async {
+    await AuthService.instance.logout();
+    if (mounted) {
+      // Navigate to login screen
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,31 +112,33 @@ class ProfileScreen extends StatelessWidget {
               ),
             ],
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Profile header
-                _buildProfileHeader(stats),
-                const SizedBox(height: 24),
+          body: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      // Profile header
+                      _buildProfileHeader(stats),
+                      const SizedBox(height: 24),
 
-                // Quick stats
-                _buildQuickStats(stats),
-                const SizedBox(height: 24),
+                      // Quick stats
+                      _buildQuickStats(stats),
+                      const SizedBox(height: 24),
 
-                // Achievement summary
-                _buildAchievementSummary(provider),
-                const SizedBox(height: 24),
+                      // Achievement summary
+                      _buildAchievementSummary(provider),
+                      const SizedBox(height: 24),
 
-                // Recent activity
-                _buildRecentActivity(provider),
-                const SizedBox(height: 24),
+                      // Recent activity
+                      _buildRecentActivity(provider),
+                      const SizedBox(height: 24),
 
-                // Action buttons
-                _buildActionButtons(context, provider),
-              ],
-            ),
-          ),
+                      // Action buttons
+                      _buildActionButtons(context, provider),
+                    ],
+                  ),
+                ),
         );
       },
     );
@@ -96,12 +175,20 @@ class ProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           TextWidget(
-            text: 'Physics Enthusiast',
+            text: _firebaseUser?.name ?? 'Physics Enthusiast',
             fontSize: 20,
             fontWeight: FontWeight.bold,
             color: textPrimary,
           ),
           const SizedBox(height: 8),
+          if (_firebaseUser?.email != null) ...[
+            TextWidget(
+              text: _firebaseUser!.email,
+              fontSize: 14,
+              color: textSecondary,
+            ),
+            const SizedBox(height: 8),
+          ],
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
@@ -403,38 +490,15 @@ class ProfileScreen extends StatelessWidget {
     return Column(
       children: [
         SizedBox(
-          width: double.infinity,
-          child: ButtonWidget(
-            label: 'Restart Tutorial',
-            onPressed: () {
-              provider.startTutorial();
-            },
-            color: accent.withOpacity(0.2),
-            textColor: accent,
-          ),
+          height: 50,
         ),
-        const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
           child: ButtonWidget(
-            label: 'View All Achievements',
-            onPressed: () {
-              provider.setCurrentIndex(2); // Navigate to achievements
-            },
-            color: badgeGold.withOpacity(0.2),
-            textColor: badgeGold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: ButtonWidget(
-            label: 'Share Progress',
-            onPressed: () {
-              _showShareDialog(context, provider.getProgressStats());
-            },
-            color: secondary.withOpacity(0.2),
-            textColor: secondary,
+            label: 'Logout',
+            onPressed: _logout,
+            color: errorRed,
+            textColor: Colors.white,
           ),
         ),
       ],

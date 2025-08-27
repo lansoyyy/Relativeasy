@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/app_state_provider.dart';
 import '../services/relativity_calculator.dart';
 import '../models/calculation_result.dart';
@@ -28,6 +30,8 @@ class _CalculatorScreenState extends State<CalculatorScreen>
   String _selectedUnit = 'years';
   CalculationResult? _result;
   bool _showGraph = false;
+  bool _isLoadingHistory = false;
+  List<CalculationResult> _calculationHistory = [];
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -57,6 +61,9 @@ class _CalculatorScreenState extends State<CalculatorScreen>
       end: Offset.zero,
     ).animate(CurvedAnimation(
         parent: _animationController, curve: Curves.easeOutCubic));
+
+    // Load calculation history
+    _loadCalculationHistory();
   }
 
   @override
@@ -67,7 +74,84 @@ class _CalculatorScreenState extends State<CalculatorScreen>
     super.dispose();
   }
 
-  void _calculate() {
+  Future<void> _loadCalculationHistory() async {
+    setState(() {
+      _isLoadingHistory = true;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('calculations')
+            .orderBy('timestamp', descending: true)
+            .limit(10)
+            .get();
+
+        setState(() {
+          _calculationHistory = snapshot.docs.map((doc) {
+            final data = doc.data();
+            return CalculationResult(
+              id: data['id'] ?? doc.id,
+              type: CalculationType.values[data['type']],
+              inputValue: (data['inputValue'] as num).toDouble(),
+              velocity: (data['velocity'] as num).toDouble(),
+              result: (data['result'] as num).toDouble(),
+              explanation: data['explanation'],
+              timestamp: (data['timestamp'] as Timestamp).toDate(),
+              unit: data['unit'],
+            );
+          }).toList();
+        });
+      }
+    } catch (e) {
+      // Handle error silently or show a message
+      debugPrint('Error loading calculation history: $e');
+    } finally {
+      setState(() {
+        _isLoadingHistory = false;
+      });
+    }
+  }
+
+  Future<void> _saveCalculationToFirebase(CalculationResult result) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('calculations')
+            .doc(result.id)
+            .set({
+          'id': result.id,
+          'type': result.type.index,
+          'inputValue': result.inputValue,
+          'velocity': result.velocity,
+          'result': result.result,
+          'explanation': result.explanation,
+          'timestamp': result.timestamp,
+          'unit': result.unit,
+        });
+
+        // Add to local history
+        setState(() {
+          _calculationHistory.insert(0, result);
+          // Keep only last 10 calculations
+          if (_calculationHistory.length > 10) {
+            _calculationHistory.removeLast();
+          }
+        });
+      }
+    } catch (e) {
+      // Handle error silently or show a message
+      debugPrint('Error saving calculation to Firebase: $e');
+    }
+  }
+
+  void _calculate() async {
     if (!_formKey.currentState!.validate()) return;
 
     try {
@@ -101,6 +185,9 @@ class _CalculatorScreenState extends State<CalculatorScreen>
       // Add to calculation history
       final provider = Provider.of<AppStateProvider>(context, listen: false);
       provider.addCalculationResult(result);
+
+      // Save to Firebase
+      await _saveCalculationToFirebase(result);
 
       // Haptic feedback
       HapticFeedback.lightImpact();
@@ -166,6 +253,10 @@ class _CalculatorScreenState extends State<CalculatorScreen>
         elevation: 0,
         actions: [
           IconButton(
+            icon: const FaIcon(FontAwesomeIcons.history),
+            onPressed: _loadCalculationHistory,
+          ),
+          IconButton(
             icon: const FaIcon(FontAwesomeIcons.chartLine),
             onPressed: () {
               setState(() {
@@ -207,6 +298,10 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                 _buildResultsDisplay(),
                 const SizedBox(height: 24),
               ],
+
+              // Calculation history
+              _buildCalculationHistory(),
+              const SizedBox(height: 24),
 
               // Graph display
               if (_showGraph) _buildGraphDisplay(),
@@ -478,6 +573,120 @@ class _CalculatorScreenState extends State<CalculatorScreen>
     );
   }
 
+  Widget _buildCalculationHistory() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            TextWidget(
+              text: 'Recent Calculations',
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: textPrimary,
+            ),
+            const Spacer(),
+            if (_isLoadingHistory)
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(accent),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (_calculationHistory.isEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextWidget(
+              text: 'No calculation history yet. Start calculating!',
+              fontSize: 14,
+              color: textSecondary,
+              align: TextAlign.center,
+            ),
+          ),
+        ] else ...[
+          Container(
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: _calculationHistory.take(5).map((calc) {
+                return _buildHistoryItem(calc);
+              }).toList(),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildHistoryItem(CalculationResult calc) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.white10, width: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          FaIcon(
+            calc.type == CalculationType.timeDilation
+                ? FontAwesomeIcons.clock
+                : FontAwesomeIcons.ruler,
+            color: calc.type == CalculationType.timeDilation
+                ? timeDilationPurple
+                : lengthContractionCyan,
+            size: 16,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextWidget(
+                  text:
+                      '${calc.inputValue.toStringAsFixed(1)} ${calc.unit} → ${calc.result.toStringAsFixed(2)} ${calc.unit}',
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: textPrimary,
+                ),
+                TextWidget(
+                  text:
+                      '${(calc.velocity * 100).toStringAsFixed(0)}%c • ${_formatDateTime(calc.timestamp)}',
+                  fontSize: 12,
+                  color: textSecondary,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const FaIcon(FontAwesomeIcons.play, size: 16),
+            onPressed: () {
+              // Load this calculation into the form
+              setState(() {
+                _selectedType = calc.type;
+                _selectedUnit = calc.unit;
+                _inputController.text = calc.inputValue.toStringAsFixed(2);
+                _velocityController.text =
+                    (calc.velocity * 100).toStringAsFixed(1);
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildGraphDisplay() {
     final data = _selectedType == CalculationType.timeDilation
         ? RelativityCalculator.generateTimeDilationGraph()
@@ -561,5 +770,20 @@ class _CalculatorScreenState extends State<CalculatorScreen>
         ],
       ),
     );
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
   }
 }

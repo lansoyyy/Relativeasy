@@ -1,6 +1,7 @@
 import 'dart:async';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../models/user.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/user.dart' as app_user;
 
 class AuthService {
   static AuthService? _instance;
@@ -8,88 +9,193 @@ class AuthService {
 
   AuthService._();
 
-  User? _currentUser;
-  final StreamController<User?> _userController = StreamController.broadcast();
-  Stream<User?> get user => _userController.stream;
+  app_user.User? _currentUser;
+  final StreamController<app_user.User?> _userController =
+      StreamController.broadcast();
+  Stream<app_user.User?> get user => _userController.stream;
 
-  User? get currentUser => _currentUser;
+  app_user.User? get currentUser => _currentUser;
 
+  // Initialize Firebase Auth listener
   Future<void> initialize() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString('userId');
-    final userName = prefs.getString('userName');
-    final userEmail = prefs.getString('userEmail');
+    // Listen to auth state changes
+    FirebaseAuth.instance.authStateChanges().listen((User? firebaseUser) async {
+      if (firebaseUser != null) {
+        // User is signed in
+        // Get additional user data from Firestore
+        try {
+          final doc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(firebaseUser.uid)
+              .get();
 
-    if (userId != null && userName != null && userEmail != null) {
-      _currentUser = User(id: userId, name: userName, email: userEmail);
-    }
-    _userController.add(_currentUser);
+          if (doc.exists) {
+            final data = doc.data()!;
+            _currentUser = app_user.User(
+              id: firebaseUser.uid,
+              name: data['name'] ?? firebaseUser.displayName ?? 'User',
+              email: firebaseUser.email ?? '',
+            );
+          } else {
+            // Create user document if it doesn't exist
+            _currentUser = app_user.User(
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName ?? 'User',
+              email: firebaseUser.email ?? '',
+            );
+
+            // Save to Firestore
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(firebaseUser.uid)
+                .set({
+              'name': _currentUser!.name,
+              'email': _currentUser!.email,
+              'createdAt': FieldValue.serverTimestamp(),
+            });
+          }
+        } catch (e) {
+          // Fallback to basic user info
+          _currentUser = app_user.User(
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName ?? 'User',
+            email: firebaseUser.email ?? '',
+          );
+        }
+      } else {
+        // User is signed out
+        _currentUser = null;
+      }
+      _userController.add(_currentUser);
+    });
   }
 
-  Future<User?> login(String email, String password) async {
-    // In a real app, this would make an API call
-    // For now, we'll simulate a successful login
-    await Future.delayed(const Duration(milliseconds: 500));
+  // Sign in with email and password
+  Future<app_user.User?> login(String email, String password) async {
+    try {
+      final credential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
 
-    // Simple validation
-    if (email.isEmpty || password.isEmpty) {
-      return null;
+      final firebaseUser = credential.user;
+      if (firebaseUser != null) {
+        // Get user data from Firestore
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(firebaseUser.uid)
+            .get();
+
+        if (doc.exists) {
+          final data = doc.data()!;
+          _currentUser = app_user.User(
+            id: firebaseUser.uid,
+            name: data['name'] ?? firebaseUser.displayName ?? 'User',
+            email: firebaseUser.email ?? '',
+          );
+        } else {
+          // Create user document if it doesn't exist
+          _currentUser = app_user.User(
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName ?? 'User',
+            email: firebaseUser.email ?? '',
+          );
+
+          // Save to Firestore
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(firebaseUser.uid)
+              .set({
+            'name': _currentUser!.name,
+            'email': _currentUser!.email,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+
+        _userController.add(_currentUser);
+        return _currentUser;
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        throw Exception('No user found for that email.');
+      } else if (e.code == 'wrong-password') {
+        throw Exception('Wrong password provided for that user.');
+      } else {
+        throw Exception('Login failed: ${e.message}');
+      }
+    } catch (e) {
+      throw Exception('An error occurred during login: $e');
     }
-
-    // For demo purposes, accept any non-empty email/password
-    _currentUser = User(
-      id: 'user_${DateTime.now().millisecondsSinceEpoch}',
-      name: email.split('@')[0],
-      email: email,
-    );
-
-    // Save to shared preferences
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('userId', _currentUser!.id);
-    await prefs.setString('userName', _currentUser!.name);
-    await prefs.setString('userEmail', _currentUser!.email);
-
-    _userController.add(_currentUser);
-    return _currentUser;
+    return null;
   }
 
-  Future<User?> signup(String name, String email, String password) async {
-    // In a real app, this would make an API call
-    // For now, we'll simulate a successful signup
-    await Future.delayed(const Duration(milliseconds: 500));
+  // Sign up with email and password
+  Future<app_user.User?> signup(
+      String name, String email, String password) async {
+    try {
+      final credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
 
-    // Simple validation
-    if (name.isEmpty || email.isEmpty || password.isEmpty) {
-      return null;
+      final firebaseUser = credential.user;
+      if (firebaseUser != null) {
+        // Update user display name
+        await firebaseUser.updateDisplayName(name);
+
+        // Create user document in Firestore
+        _currentUser = app_user.User(
+          id: firebaseUser.uid,
+          name: name,
+          email: firebaseUser.email ?? '',
+        );
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(firebaseUser.uid)
+            .set({
+          'name': name,
+          'email': firebaseUser.email,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        _userController.add(_currentUser);
+        return _currentUser;
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'email-already-in-use') {
+        throw Exception('The account already exists for that email.');
+      } else if (e.code == 'invalid-email') {
+        throw Exception('The email address is badly formatted.');
+      } else if (e.code == 'operation-not-allowed') {
+        throw Exception('Email/password accounts are not enabled.');
+      } else if (e.code == 'weak-password') {
+        throw Exception('The password provided is too weak.');
+      } else {
+        throw Exception('Signup failed: ${e.message}');
+      }
+    } catch (e) {
+      throw Exception('An error occurred during signup: $e');
     }
-
-    // For demo purposes, accept any non-empty values
-    _currentUser = User(
-      id: 'user_${DateTime.now().millisecondsSinceEpoch}',
-      name: name,
-      email: email,
-    );
-
-    // Save to shared preferences
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('userId', _currentUser!.id);
-    await prefs.setString('userName', _currentUser!.name);
-    await prefs.setString('userEmail', _currentUser!.email);
-
-    _userController.add(_currentUser);
-    return _currentUser;
+    return null;
   }
 
+  // Sign out
   Future<void> logout() async {
+    await FirebaseAuth.instance.signOut();
     _currentUser = null;
-
-    // Clear shared preferences
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('userId');
-    await prefs.remove('userName');
-    await prefs.remove('userEmail');
-
     _userController.add(_currentUser);
+  }
+
+  // Send password reset email
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'invalid-email') {
+        throw Exception('The email address is badly formatted.');
+      } else if (e.code == 'user-not-found') {
+        throw Exception('No user found for that email.');
+      } else {
+        throw Exception('Failed to send password reset email: ${e.message}');
+      }
+    }
   }
 
   void dispose() {

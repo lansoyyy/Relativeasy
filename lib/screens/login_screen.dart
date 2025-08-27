@@ -50,14 +50,14 @@ class _LoginScreenState extends State<LoginScreen> {
             MaterialPageRoute(builder: (context) => const MainScreen()),
           );
         }
-      } else {
-        setState(() {
-          _errorMessage = 'Invalid email or password';
-        });
       }
+    } on Exception catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      });
     } catch (e) {
       setState(() {
-        _errorMessage = 'An error occurred. Please try again.';
+        _errorMessage = 'An unexpected error occurred. Please try again.';
       });
     } finally {
       if (mounted) {
@@ -105,7 +105,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 20),
               TextWidget(
-                // Removed const
                 text: 'Relativeasy',
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
@@ -113,7 +112,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 8),
               TextWidget(
-                // Removed const
                 text: 'Master Special Relativity',
                 fontSize: 14,
                 color: textSecondary,
@@ -155,7 +153,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         }
                         return null;
                       },
-                      onEditingComplete: _login,
                     ),
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 16),
@@ -169,9 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 24),
                     ButtonWidget(
                       label: 'Login',
-                      onPressed: _isLoading
-                          ? () {}
-                          : _login, // Fixed onPressed callback
+                      onPressed: _isLoading ? () {} : _login,
                       color: accent,
                       textColor: textOnAccent,
                       isLoading: _isLoading,
@@ -185,7 +180,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   TextWidget(
-                    // Removed const
                     text: "Don't have an account?",
                     fontSize: 14,
                     color: textSecondary,
@@ -199,7 +193,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       );
                     },
                     child: TextWidget(
-                      // Removed const
                       text: 'Sign up',
                       fontSize: 14,
                       color: accent,

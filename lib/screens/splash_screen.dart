@@ -1,37 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:relativeasy/utils/colors.dart';
-import 'package:relativeasy/screens/main_screen.dart';
-import 'package:relativeasy/screens/login_screen.dart'; // Added login screen import
-import 'package:relativeasy/services/auth_service.dart'; // Added auth service import
-import 'dart:async';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
-
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen> {
-  @override
-  void initState() {
-    super.initState();
-    // Check authentication status and navigate accordingly
-    Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        // Check if user is already logged in
-        if (AuthService.instance.currentUser != null) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const MainScreen()),
-          );
-        } else {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
-          );
-        }
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {

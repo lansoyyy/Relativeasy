@@ -3,8 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../providers/app_state_provider.dart';
 import '../utils/colors.dart';
-import '../services/auth_service.dart'; // Added auth service import
-import 'login_screen.dart'; // Added login screen import
+import '../services/auth_service.dart';
 import 'calculator_screen.dart';
 import 'challenges_screen.dart';
 import 'achievements_screen.dart';
@@ -73,7 +72,7 @@ class _MainScreenState extends State<MainScreen> {
     // Initialize user data
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final provider = Provider.of<AppStateProvider>(context, listen: false);
-      // Use the authenticated user ID or default
+      // Use the authenticated user ID
       final userId = AuthService.instance.currentUser?.id ?? 'default_user';
       await provider.initializeUser(userId);
 
@@ -110,23 +109,6 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Check if user is authenticated
-    if (AuthService.instance.currentUser == null) {
-      // If not authenticated, redirect to login screen
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
-      });
-
-      // Show a loading indicator while redirecting
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
     return Consumer<AppStateProvider>(
       builder: (context, provider, child) {
         return Scaffold(

@@ -83,9 +83,16 @@ class DailyChallenge {
   }
 
   static DailyChallenge _generateBeginnerChallenge(String id, DateTime date) {
-    // Simple time dilation problem
-    double velocity = 0.5 + (date.day % 3) * 0.1; // 0.5c to 0.7c
-    double properTime = 10.0 + (date.day % 5) * 2; // 10 to 18 years
+    // More diverse time dilation problems with unique parameters
+    // Using date.microsecondsSinceEpoch for better uniqueness
+    int seed = date.microsecondsSinceEpoch ~/ 1000;
+    seed = seed + id.hashCode; // Add additional uniqueness from the ID
+
+    // Generate unique velocity between 0.3c and 0.8c
+    double velocity = 0.3 + (seed % 51) * 0.01; // 0.30c to 0.80c
+
+    // Generate unique proper time between 5 and 30 years
+    double properTime = 5.0 + (seed % 251) * 0.1; // 5.0 to 30.0 years
 
     double dilatedTime = properTime / (1 - velocity * velocity).sqrt();
 
@@ -93,7 +100,7 @@ class DailyChallenge {
       id: id,
       title: 'Time Dilation Basics',
       question:
-          'A spaceship travels at ${(velocity * 100).toStringAsFixed(0)}% the speed of light. If ${properTime.toStringAsFixed(0)} years pass on the ship, how much time passes on Earth?',
+          'A spaceship travels at ${(velocity * 100).toStringAsFixed(1)}% the speed of light. If ${properTime.toStringAsFixed(1)} years pass on the ship, how much time passes on Earth?',
       difficulty: DifficultyLevel.beginner,
       type: CalculationType.timeDilation,
       expectedAnswer: dilatedTime,
@@ -103,25 +110,56 @@ class DailyChallenge {
         'properTime': properTime,
       },
       explanation:
-          'When objects move at high speeds, time passes slower for them relative to stationary observers. This is calculated using the Lorentz factor.',
-      hint: 'Use the time dilation formula: Δt = Δt₀ / √(1 - v²/c²)',
+          'When objects move at high speeds, time passes slower for them relative to stationary observers. This is calculated using the Lorentz factor: Δt = Δt₀ / √(1 - v²/c²)',
+      hint:
+          'Use the time dilation formula: Δt = Δt₀ / √(1 - v²/c²). Remember to square the velocity ratio (v/c).',
       date: date,
     );
   }
 
   static DailyChallenge _generateIntermediateChallenge(
       String id, DateTime date) {
-    // Length contraction problem
-    double velocity = 0.7 + (date.day % 3) * 0.05; // 0.7c to 0.8c
-    double properLength = 100.0 + (date.day % 4) * 50; // 100 to 250 meters
+    // More diverse length contraction problems with unique parameters
+    int seed = date.microsecondsSinceEpoch ~/ 1000;
+    seed = seed + id.hashCode; // Add additional uniqueness from the ID
+
+    // Generate unique velocity between 0.6c and 0.95c
+    double velocity = 0.6 + (seed % 36) * 0.01; // 0.60c to 0.95c
+
+    // Generate unique proper length between 50 and 500 meters
+    double properLength = 50.0 + (seed % 4501) * 0.1; // 50.0 to 500.0 meters
 
     double contractedLength = properLength * (1 - velocity * velocity).sqrt();
 
+    // Alternate between different question formats
+    String question;
+    if (seed % 3 == 0) {
+      question =
+          'A rod with proper length ${properLength.toStringAsFixed(1)}m moves at ${(velocity * 100).toStringAsFixed(1)}% the speed of light. What is its contracted length as observed from a stationary frame?';
+    } else if (seed % 3 == 1) {
+      question =
+          'An object that is ${properLength.toStringAsFixed(1)}m long at rest appears to be how long when moving at ${(velocity * 100).toStringAsFixed(1)}% the speed of light?';
+    } else {
+      question =
+          'A spaceship that is ${properLength.toStringAsFixed(1)}m long at rest is traveling at ${(velocity * 100).toStringAsFixed(1)}% the speed of light. What length would an observer at rest measure?';
+    }
+
+    // Vary the title based on seed
+    String title;
+    if (seed % 4 == 0) {
+      title = 'Length Contraction';
+    } else if (seed % 4 == 1) {
+      title = 'Lorentz Contraction';
+    } else if (seed % 4 == 2) {
+      title = 'Relativistic Length';
+    } else {
+      title = 'Contracted Dimensions';
+    }
+
     return DailyChallenge(
       id: id,
-      title: 'Length Contraction',
-      question:
-          'A rod with proper length ${properLength.toStringAsFixed(0)}m moves at ${(velocity * 100).toStringAsFixed(1)}% the speed of light. What is its contracted length as observed from a stationary frame?',
+      title: title,
+      question: question,
       difficulty: DifficultyLevel.intermediate,
       type: CalculationType.lengthContraction,
       expectedAnswer: contractedLength,
@@ -131,24 +169,64 @@ class DailyChallenge {
         'properLength': properLength,
       },
       explanation:
-          'Objects appear shorter in the direction of motion when moving at relativistic speeds.',
-      hint: 'Use the length contraction formula: L = L₀ × √(1 - v²/c²)',
+          'Objects appear shorter in the direction of motion when moving at relativistic speeds. This is calculated using the length contraction formula: L = L₀ × √(1 - v²/c²)',
+      hint:
+          'Use the length contraction formula: L = L₀ × √(1 - v²/c²). Remember that the contracted length is always less than the proper length.',
       date: date,
     );
   }
 
   static DailyChallenge _generateExpertChallenge(String id, DateTime date) {
-    // Complex scenario
-    double velocity = 0.85 + (date.day % 3) * 0.03; // 0.85c to 0.91c
-    double properTime = 5.0 + (date.day % 3) * 2; // 5 to 9 years
+    // More complex scenarios with unique parameters
+    int seed = date.microsecondsSinceEpoch ~/ 1000;
+    seed = seed + id.hashCode; // Add additional uniqueness from the ID
+
+    // Generate unique velocity between 0.9c and 0.99c
+    double velocity = 0.9 + (seed % 100) * 0.001; // 0.900c to 0.999c
+
+    // Generate unique proper time between 1 and 20 years
+    double properTime = 1.0 + (seed % 191) * 0.1; // 1.0 to 20.0 years
 
     double dilatedTime = properTime / (1 - velocity * velocity).sqrt();
 
+    // Alternate between different expert scenarios
+    String title, question, explanation;
+    if (seed % 5 == 0) {
+      title = 'Interstellar Journey';
+      question =
+          'An astronaut travels to a star system ${(velocity * 100).toStringAsFixed(2)}% the speed of light. If the journey takes ${properTime.toStringAsFixed(1)} years in the ship\'s frame, how much time passes on Earth? Consider only the outbound journey.';
+      explanation =
+          'At very high speeds, the time dilation effect becomes extreme. This is why interstellar travel might be possible for travelers but not for those left behind.';
+    } else if (seed % 5 == 1) {
+      title = 'Twin Paradox';
+      question =
+          'One twin travels at ${(velocity * 100).toStringAsFixed(2)}% the speed of light for ${properTime.toStringAsFixed(1)} years (ship time) and returns. How much older is the Earth twin when the traveling twin returns?';
+      explanation =
+          'The twin paradox demonstrates that time passes differently for observers in relative motion. The traveling twin experiences less time than the stationary twin.';
+    } else if (seed % 5 == 2) {
+      title = 'Relativistic Effects';
+      question =
+          'A spacecraft travels at ${(velocity * 100).toStringAsFixed(2)}% the speed of light. If ${properTime.toStringAsFixed(1)} years pass for the crew, how much time has passed on their home planet?';
+      explanation =
+          'Time dilation is a fundamental aspect of special relativity. As objects approach the speed of light, time slows down relative to stationary observers.';
+    } else if (seed % 5 == 3) {
+      title = 'High-Speed Travel';
+      question =
+          'A probe is sent to a distant star at ${(velocity * 100).toStringAsFixed(2)}% the speed of light. Mission control observes that ${properTime.toStringAsFixed(1)} years pass for the probe. How much time has passed on Earth?';
+      explanation =
+          'The faster an object moves, the more pronounced the time dilation effect becomes. This is a direct consequence of Einstein\'s theory of special relativity.';
+    } else {
+      title = 'Time Dilation Extreme';
+      question =
+          'At ${(velocity * 100).toStringAsFixed(2)}% the speed of light, if ${properTime.toStringAsFixed(1)} years pass for a moving observer, how much time passes for a stationary observer?';
+      explanation =
+          'The Lorentz factor γ = 1/√(1 - v²/c²) determines the magnitude of relativistic effects. As velocity approaches c, γ approaches infinity.';
+    }
+
     return DailyChallenge(
       id: id,
-      title: 'Relativistic Journey',
-      question:
-          'An astronaut travels to a star system ${(velocity * 100).toStringAsFixed(1)}% the speed of light. If the journey takes ${properTime.toStringAsFixed(0)} years in the ship\'s frame, how much time passes on Earth? Consider only the outbound journey.',
+      title: title,
+      question: question,
       difficulty: DifficultyLevel.expert,
       type: CalculationType.timeDilation,
       expectedAnswer: dilatedTime,
@@ -157,10 +235,9 @@ class DailyChallenge {
         'velocity': velocity,
         'properTime': properTime,
       },
-      explanation:
-          'At very high speeds, the time dilation effect becomes extreme. This is why interstellar travel might be possible for travelers but not for those left behind.',
+      explanation: explanation,
       hint:
-          'Remember that time dilation becomes more pronounced as velocity approaches the speed of light.',
+          'Remember that time dilation becomes more pronounced as velocity approaches the speed of light. Use the formula: Δt = Δt₀ / √(1 - v²/c²)',
       date: date,
     );
   }

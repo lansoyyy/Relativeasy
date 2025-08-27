@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/leaderboard.dart';
 import '../models/user_progress.dart';
 
@@ -9,7 +11,224 @@ class LeaderboardService {
 
   LeaderboardService._();
 
-  // Generate mock leaderboard data for demonstration
+  // Main method to get leaderboard with real Firebase data
+  Future<Leaderboard> getLeaderboard(
+      UserProgress userProgress, int unlockedBadges) async {
+    try {
+      // Fetch real data from Firebase
+      final allTimeLeaders = await _fetchLeaderboardData(isWeekly: false);
+      final weeklyLeaders = await _fetchLeaderboardData(isWeekly: true);
+
+      // Add current user to the leaderboard
+      final currentUserEntry =
+          _createCurrentUserEntry(userProgress, unlockedBadges);
+
+      // Add current user to both leaderboards if not already present
+      bool userInAllTime = allTimeLeaders
+          .any((entry) => entry.userId == currentUserEntry.userId);
+      bool userInWeekly =
+          weeklyLeaders.any((entry) => entry.userId == currentUserEntry.userId);
+
+      final List<LeaderboardEntry> finalAllTimeLeaders =
+          List.from(allTimeLeaders);
+      final List<LeaderboardEntry> finalWeeklyLeaders =
+          List.from(weeklyLeaders);
+
+      if (!userInAllTime) {
+        finalAllTimeLeaders.add(currentUserEntry);
+        // Re-sort and re-rank
+        finalAllTimeLeaders.sort((a, b) => b.totalXP.compareTo(a.totalXP));
+        for (int i = 0; i < finalAllTimeLeaders.length; i++) {
+          finalAllTimeLeaders[i] = LeaderboardEntry(
+            userId: finalAllTimeLeaders[i].userId,
+            username: finalAllTimeLeaders[i].username,
+            totalXP: finalAllTimeLeaders[i].totalXP,
+            weeklyXP: finalAllTimeLeaders[i].weeklyXP,
+            rank: i + 1,
+            weeklyRank: finalAllTimeLeaders[i].weeklyRank,
+            averageAccuracy: finalAllTimeLeaders[i].averageAccuracy,
+            dailyStreak: finalAllTimeLeaders[i].dailyStreak,
+            badgesEarned: finalAllTimeLeaders[i].badgesEarned,
+            lastActive: finalAllTimeLeaders[i].lastActive,
+          );
+        }
+      }
+
+      if (!userInWeekly) {
+        finalWeeklyLeaders.add(currentUserEntry);
+        // Re-sort and re-rank
+        finalWeeklyLeaders.sort((a, b) => b.weeklyXP.compareTo(a.weeklyXP));
+        for (int i = 0; i < finalWeeklyLeaders.length; i++) {
+          finalWeeklyLeaders[i] = LeaderboardEntry(
+            userId: finalWeeklyLeaders[i].userId,
+            username: finalWeeklyLeaders[i].username,
+            totalXP: finalWeeklyLeaders[i].totalXP,
+            weeklyXP: finalWeeklyLeaders[i].weeklyXP,
+            rank: finalWeeklyLeaders[i].rank,
+            weeklyRank: i + 1,
+            averageAccuracy: finalWeeklyLeaders[i].averageAccuracy,
+            dailyStreak: finalWeeklyLeaders[i].dailyStreak,
+            badgesEarned: finalWeeklyLeaders[i].badgesEarned,
+            lastActive: finalWeeklyLeaders[i].lastActive,
+          );
+        }
+      }
+
+      return Leaderboard(
+        allTimeLeaders: finalAllTimeLeaders,
+        weeklyLeaders: finalWeeklyLeaders,
+        lastUpdated: DateTime.now(),
+      );
+    } catch (e) {
+      // If Firebase fails, generate mock data as fallback
+      final mockAllTime = _generateMockLeaderboard(isWeekly: false);
+      final mockWeekly = _generateMockLeaderboard(isWeekly: true);
+
+      // Add current user to mock data
+      final currentUserEntry =
+          _createCurrentUserEntry(userProgress, unlockedBadges);
+      mockAllTime.add(currentUserEntry);
+      mockWeekly.add(currentUserEntry);
+
+      // Sort and rank mock data
+      mockAllTime.sort((a, b) => b.totalXP.compareTo(a.totalXP));
+      mockWeekly.sort((a, b) => b.weeklyXP.compareTo(a.weeklyXP));
+
+      for (int i = 0; i < mockAllTime.length; i++) {
+        mockAllTime[i] = LeaderboardEntry(
+          userId: mockAllTime[i].userId,
+          username: mockAllTime[i].username,
+          totalXP: mockAllTime[i].totalXP,
+          weeklyXP: mockAllTime[i].weeklyXP,
+          rank: i + 1,
+          weeklyRank: mockAllTime[i].weeklyRank,
+          averageAccuracy: mockAllTime[i].averageAccuracy,
+          dailyStreak: mockAllTime[i].dailyStreak,
+          badgesEarned: mockAllTime[i].badgesEarned,
+          lastActive: mockAllTime[i].lastActive,
+        );
+      }
+
+      for (int i = 0; i < mockWeekly.length; i++) {
+        mockWeekly[i] = LeaderboardEntry(
+          userId: mockWeekly[i].userId,
+          username: mockWeekly[i].username,
+          totalXP: mockWeekly[i].totalXP,
+          weeklyXP: mockWeekly[i].weeklyXP,
+          rank: mockWeekly[i].rank,
+          weeklyRank: i + 1,
+          averageAccuracy: mockWeekly[i].averageAccuracy,
+          dailyStreak: mockWeekly[i].dailyStreak,
+          badgesEarned: mockWeekly[i].badgesEarned,
+          lastActive: mockWeekly[i].lastActive,
+        );
+      }
+
+      return Leaderboard(
+        allTimeLeaders: mockAllTime,
+        weeklyLeaders: mockWeekly,
+        lastUpdated: DateTime.now(),
+      );
+    }
+  }
+
+  // Fetch real leaderboard data from Firestore
+  Future<List<LeaderboardEntry>> _fetchLeaderboardData(
+      {bool isWeekly = false}) async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final now = DateTime.now();
+
+      // For weekly leaderboard, we only consider data from the last 7 days
+      final weekAgo = now.subtract(const Duration(days: 7));
+
+      // Get all users' progress data
+      final query = await firestore.collection('users').get();
+
+      List<LeaderboardEntry> entries = [];
+
+      for (var doc in query.docs) {
+        final userData = doc.data();
+
+        // Skip if no progress data
+        if (!userData.containsKey('progress') || userData['progress'] == null) {
+          continue;
+        }
+
+        final progressData = userData['progress'];
+        final userId = doc.id;
+        final username = userData['username'] ?? 'Anonymous';
+
+        // Calculate XP based on timeframe
+        int totalXP = progressData['totalXP'] ?? 0;
+        int weeklyXP = 0;
+
+        // For weekly XP, we would need to track daily XP gains
+        // For now, we'll estimate based on recent activity
+        if (progressData.containsKey('lastUpdated')) {
+          try {
+            final lastUpdated =
+                (progressData['lastUpdated'] as Timestamp).toDate();
+            if (lastUpdated.isAfter(weekAgo)) {
+              weeklyXP = math.min(totalXP ~/ 4, 300);
+            }
+          } catch (e) {
+            // If parsing fails, use a default calculation
+            weeklyXP = math.min(totalXP ~/ 4, 300);
+          }
+        }
+
+        // Get other user stats
+        final accuracy = (progressData['averageAccuracy'] ?? 0.0) as double;
+        final streak = progressData['dailyStreak'] ?? 0;
+        final badges = progressData['badgesEarned'] ?? 0;
+        final lastActive = progressData.containsKey('lastUpdated')
+            ? (progressData['lastUpdated'] as Timestamp).toDate()
+            : now;
+
+        entries.add(LeaderboardEntry(
+          userId: userId,
+          username: username,
+          totalXP: totalXP,
+          weeklyXP: weeklyXP,
+          rank: 0, // Will be calculated later
+          weeklyRank: 0, // Will be calculated later
+          averageAccuracy: accuracy,
+          dailyStreak: streak,
+          badgesEarned: badges,
+          lastActive: lastActive,
+        ));
+      }
+
+      // Sort by XP (descending)
+      entries.sort((a, b) => isWeekly
+          ? b.weeklyXP.compareTo(a.weeklyXP)
+          : b.totalXP.compareTo(a.totalXP));
+
+      // Assign ranks
+      for (int i = 0; i < entries.length; i++) {
+        entries[i] = LeaderboardEntry(
+          userId: entries[i].userId,
+          username: entries[i].username,
+          totalXP: entries[i].totalXP,
+          weeklyXP: entries[i].weeklyXP,
+          rank: isWeekly ? entries[i].rank : (i + 1),
+          weeklyRank: isWeekly ? (i + 1) : entries[i].weeklyRank,
+          averageAccuracy: entries[i].averageAccuracy,
+          dailyStreak: entries[i].dailyStreak,
+          badgesEarned: entries[i].badgesEarned,
+          lastActive: entries[i].lastActive,
+        );
+      }
+
+      return entries;
+    } catch (e) {
+      // Fallback to mock data if Firebase fails
+      return _generateMockLeaderboard(isWeekly: isWeekly);
+    }
+  }
+
+  // Generate mock leaderboard data for demonstration (fallback)
   List<LeaderboardEntry> _generateMockLeaderboard({bool isWeekly = false}) {
     final List<Map<String, dynamic>> mockUsers = [
       {
@@ -73,6 +292,17 @@ class LeaderboardService {
     }).toList();
   }
 
+  int _calculateUserRank(List<LeaderboardEntry> entries, int userXP) {
+    int rank = 1;
+    for (final entry in entries) {
+      if (userXP > entry.totalXP) {
+        break;
+      }
+      rank++;
+    }
+    return rank;
+  }
+
   // Add current user to leaderboard
   LeaderboardEntry _createCurrentUserEntry(
       UserProgress userProgress, int unlockedBadges) {
@@ -97,68 +327,6 @@ class LeaderboardService {
       return math.min(userProgress.totalXP ~/ 4, 300);
     }
     return 0;
-  }
-
-  // Get leaderboard with current user included
-  Future<Leaderboard> getLeaderboard(
-      UserProgress? userProgress, int unlockedBadges) async {
-    List<LeaderboardEntry> allTimeEntries =
-        _generateMockLeaderboard(isWeekly: false);
-    List<LeaderboardEntry> weeklyEntries =
-        _generateMockLeaderboard(isWeekly: true);
-
-    // Add current user if available
-    if (userProgress != null) {
-      LeaderboardEntry currentUser =
-          _createCurrentUserEntry(userProgress, unlockedBadges);
-
-      // Calculate user's rank
-      int allTimeRank = _calculateUserRank(allTimeEntries, currentUser.totalXP);
-      int weeklyRank = _calculateUserRank(weeklyEntries, currentUser.weeklyXP);
-
-      currentUser = LeaderboardEntry(
-        userId: currentUser.userId,
-        username: currentUser.username,
-        totalXP: currentUser.totalXP,
-        weeklyXP: currentUser.weeklyXP,
-        rank: allTimeRank,
-        weeklyRank: weeklyRank,
-        averageAccuracy: currentUser.averageAccuracy,
-        dailyStreak: currentUser.dailyStreak,
-        badgesEarned: currentUser.badgesEarned,
-        lastActive: currentUser.lastActive,
-      );
-
-      // Add user to appropriate position
-      if (allTimeRank <= 20) {
-        allTimeEntries.insert(allTimeRank - 1, currentUser);
-      } else {
-        allTimeEntries.add(currentUser);
-      }
-
-      if (weeklyRank <= 20) {
-        weeklyEntries.insert(weeklyRank - 1, currentUser);
-      } else {
-        weeklyEntries.add(currentUser);
-      }
-    }
-
-    return Leaderboard(
-      allTimeLeaders: allTimeEntries.take(25).toList(),
-      weeklyLeaders: weeklyEntries.take(25).toList(),
-      lastUpdated: DateTime.now(),
-    );
-  }
-
-  int _calculateUserRank(List<LeaderboardEntry> entries, int userXP) {
-    int rank = 1;
-    for (final entry in entries) {
-      if (userXP > entry.totalXP) {
-        break;
-      }
-      rank++;
-    }
-    return rank;
   }
 
   // Get competitive insights

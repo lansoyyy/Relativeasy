@@ -1,21 +1,23 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:relativeasy/firebase_options.dart';
-import 'package:relativeasy/screens/login_screen.dart'; // Changed to login_screen
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:relativeasy/screens/splash_screen.dart';
+import 'package:relativeasy/screens/login_screen.dart';
+import 'package:relativeasy/screens/signup_screen.dart';
+import 'package:relativeasy/screens/main_screen.dart';
 import 'package:relativeasy/utils/colors.dart';
 import 'package:relativeasy/providers/app_state_provider.dart';
-import 'package:relativeasy/services/auth_service.dart'; // Added auth service import
+import 'package:relativeasy/services/auth_service.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  await AuthService.instance.initialize(); // Initialize auth service
   await Firebase.initializeApp(
     name: 'relativeasy',
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
+  await AuthService.instance.initialize();
   runApp(const MyApp());
 }
 
@@ -73,8 +75,39 @@ class MyApp extends StatelessWidget {
           fontFamily: 'Regular',
           useMaterial3: true,
         ),
-        home: const LoginScreen(), // Changed from SplashScreen to LoginScreen
+        home: const AuthWrapper(), // Use AuthWrapper to handle auto-login
+        routes: {
+          '/login': (context) => const LoginScreen(),
+          '/signup': (context) => const SignupScreen(),
+          '/main': (context) => const MainScreen(),
+        },
       ),
+    );
+  }
+}
+
+// Wrapper widget to handle authentication state
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // Show splash screen while checking auth state
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SplashScreen();
+        }
+
+        // If user is authenticated, show main screen
+        if (snapshot.hasData) {
+          return const MainScreen();
+        }
+
+        // If not authenticated, show login screen
+        return const LoginScreen();
+      },
     );
   }
 }
