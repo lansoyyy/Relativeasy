@@ -1,10 +1,21 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:relativeasy/screens/splash_screen.dart'; // Changed from main_screen to splash_screen
+import 'package:relativeasy/firebase_options.dart';
+import 'package:relativeasy/screens/login_screen.dart'; // Changed to login_screen
 import 'package:relativeasy/utils/colors.dart';
 import 'package:relativeasy/providers/app_state_provider.dart';
+import 'package:relativeasy/services/auth_service.dart'; // Added auth service import
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await AuthService.instance.initialize(); // Initialize auth service
+  await Firebase.initializeApp(
+    name: 'relativeasy',
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const MyApp());
 }
 
@@ -62,7 +73,7 @@ class MyApp extends StatelessWidget {
           fontFamily: 'Regular',
           useMaterial3: true,
         ),
-        home: const SplashScreen(), // Changed from MainScreen to SplashScreen
+        home: const LoginScreen(), // Changed from SplashScreen to LoginScreen
       ),
     );
   }
