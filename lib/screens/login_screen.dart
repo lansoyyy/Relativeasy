@@ -7,6 +7,7 @@ import 'package:relativeasy/widgets/button_widget.dart';
 import 'package:relativeasy/widgets/app_text_form_field.dart';
 import 'package:relativeasy/screens/signup_screen.dart';
 import 'package:relativeasy/screens/main_screen.dart';
+import 'package:relativeasy/widgets/forgot_password_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -153,6 +154,23 @@ class _LoginScreenState extends State<LoginScreen> {
                         }
                         return null;
                       },
+                    ),
+                    // Forgot Password link
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () {
+                                showForgotPasswordDialog(context);
+                              },
+                        child: TextWidget(
+                          text: 'Forgot Password?',
+                          fontSize: 14,
+                          color: accent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 16),
