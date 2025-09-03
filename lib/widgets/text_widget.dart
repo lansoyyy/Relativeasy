@@ -17,7 +17,7 @@ class TextWidget extends StatelessWidget {
       {super.key,
       this.decoration,
       this.align = TextAlign.start,
-      this.maxLines,
+      this.maxLines = 5,
       this.overflow,
       this.isItalize = false,
       this.isBold = false,

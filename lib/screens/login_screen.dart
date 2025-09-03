@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:relativeasy/services/auth_service.dart';
@@ -44,22 +45,36 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
 
-      if (user != null) {
+      if (user != null && mounted) {
         // Navigate to main screen
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const MainScreen()),
-          );
-        }
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const MainScreen()),
+        );
+      } else if (mounted) {
+        setState(() {
+          _errorMessage = 'Login failed. Please try again.';
+        });
       }
-    } on Exception catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
-      });
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage =
+              e.message ?? 'Authentication failed. Please try again.';
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'An unexpected error occurred. Please try again.';
-      });
+      if (mounted) {
+        String errorMessage = 'An unexpected error occurred. Please try again.';
+        if (e is Exception) {
+          errorMessage = e.toString().replaceFirst('Exception: ', '');
+        } else if (e.toString().contains('PigeonUserDetails')) {
+          errorMessage =
+              'Authentication service needs to be refreshed. Please restart the app.';
+        }
+        setState(() {
+          _errorMessage = errorMessage;
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -203,13 +218,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     color: textSecondary,
                   ),
                   TextButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const SignupScreen(),
-                        ),
-                      );
-                    },
+                    onPressed: _isLoading
+                        ? null
+                        : () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => const SignupScreen(),
+                              ),
+                            );
+                          },
                     child: TextWidget(
                       text: 'Sign up',
                       fontSize: 14,

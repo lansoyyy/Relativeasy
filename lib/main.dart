@@ -13,11 +13,19 @@ import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    name: 'relativeasy',
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  await AuthService.instance.initialize();
+
+  try {
+    await Firebase.initializeApp(
+      name: 'relativeasy',
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await AuthService.instance.initialize();
+  } catch (e) {
+    print('Error initializing Firebase: $e');
+    // Even if Firebase fails to initialize, we can still run the app
+    // This allows the app to work in offline mode or with limited functionality
+  }
+
   runApp(const MyApp());
 }
 
@@ -105,7 +113,7 @@ class AuthWrapper extends StatelessWidget {
           return const MainScreen();
         }
 
-        // If not authenticated, show login screen
+        // If not authenticated or error occurred, show login screen
         return const LoginScreen();
       },
     );
