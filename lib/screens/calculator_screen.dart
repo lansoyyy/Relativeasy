@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/app_state_provider.dart';
 import '../services/relativity_calculator.dart';
+import '../services/kinematics_calculator.dart';
 import '../models/calculation_result.dart';
 import '../utils/colors.dart';
 import '../widgets/text_widget.dart';
@@ -25,6 +26,10 @@ class _CalculatorScreenState extends State<CalculatorScreen>
   final _formKey = GlobalKey<FormState>();
   final _inputController = TextEditingController();
   final _velocityController = TextEditingController();
+  final _initialVelocityController = TextEditingController();
+  final _finalVelocityController = TextEditingController();
+  final _accelerationController = TextEditingController();
+  final _timeController = TextEditingController();
 
   CalculationType _selectedType = CalculationType.timeDilation;
   String _selectedUnit = 'years';
@@ -45,6 +50,8 @@ class _CalculatorScreenState extends State<CalculatorScreen>
     'years'
   ];
   final List<String> _lengthUnits = ['meters', 'kilometers', 'light-years'];
+  final List<String> _velocityUnits = ['m/s', 'km/h', 'mph'];
+  final List<String> _accelerationUnits = ['m/s²', 'km/h²'];
 
   @override
   void initState() {
@@ -70,6 +77,10 @@ class _CalculatorScreenState extends State<CalculatorScreen>
   void dispose() {
     _inputController.dispose();
     _velocityController.dispose();
+    _initialVelocityController.dispose();
+    _finalVelocityController.dispose();
+    _accelerationController.dispose();
+    _timeController.dispose();
     _animationController.dispose();
     super.dispose();
   }
@@ -155,24 +166,81 @@ class _CalculatorScreenState extends State<CalculatorScreen>
     if (!_formKey.currentState!.validate()) return;
 
     try {
-      double inputValue = double.parse(_inputController.text);
-      double velocity = double.parse(_velocityController.text) /
-          100; // Convert percentage to fraction
-
       CalculationResult result;
 
-      if (_selectedType == CalculationType.timeDilation) {
-        result = RelativityCalculator.calculateTimeDilation(
-          properTime: inputValue,
-          velocity: velocity,
-          unit: _selectedUnit,
-        );
-      } else {
-        result = RelativityCalculator.calculateLengthContraction(
-          properLength: inputValue,
-          velocity: velocity,
-          unit: _selectedUnit,
-        );
+      // Handle relativity calculations
+      if (_selectedType == CalculationType.timeDilation ||
+          _selectedType == CalculationType.lengthContraction) {
+        double inputValue = double.parse(_inputController.text);
+        double velocity = double.parse(_velocityController.text) /
+            100; // Convert percentage to fraction
+
+        if (_selectedType == CalculationType.timeDilation) {
+          result = RelativityCalculator.calculateTimeDilation(
+            properTime: inputValue,
+            velocity: velocity,
+            unit: _selectedUnit,
+          );
+        } else {
+          result = RelativityCalculator.calculateLengthContraction(
+            properLength: inputValue,
+            velocity: velocity,
+            unit: _selectedUnit,
+          );
+        }
+      }
+      // Handle kinematics calculations
+      else {
+        double initialVelocity = double.parse(_initialVelocityController.text);
+
+        switch (_selectedType) {
+          case CalculationType.displacement:
+            double acceleration = double.parse(_accelerationController.text);
+            double time = double.parse(_timeController.text);
+            result = KinematicsCalculator.calculateDisplacement(
+              initialVelocity: initialVelocity,
+              acceleration: acceleration,
+              time: time,
+              unit: _selectedUnit,
+            );
+            break;
+
+          case CalculationType.velocity:
+            double acceleration = double.parse(_accelerationController.text);
+            double time = double.parse(_timeController.text);
+            result = KinematicsCalculator.calculateVelocity(
+              initialVelocity: initialVelocity,
+              acceleration: acceleration,
+              time: time,
+              unit: _selectedUnit,
+            );
+            break;
+
+          case CalculationType.acceleration:
+            double finalVelocity = double.parse(_finalVelocityController.text);
+            double time = double.parse(_timeController.text);
+            result = KinematicsCalculator.calculateAcceleration(
+              initialVelocity: initialVelocity,
+              finalVelocity: finalVelocity,
+              time: time,
+              unit: _selectedUnit,
+            );
+            break;
+
+          case CalculationType.time:
+            double finalVelocity = double.parse(_finalVelocityController.text);
+            double acceleration = double.parse(_accelerationController.text);
+            result = KinematicsCalculator.calculateTime(
+              initialVelocity: initialVelocity,
+              finalVelocity: finalVelocity,
+              acceleration: acceleration,
+              unit: _selectedUnit,
+            );
+            break;
+
+          default:
+            throw Exception('Unknown calculation type');
+        }
       }
 
       setState(() {
@@ -319,85 +387,260 @@ class _CalculatorScreenState extends State<CalculatorScreen>
         color: surface,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedType = CalculationType.timeDilation;
-                  _selectedUnit = 'years';
-                });
-              },
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: _selectedType == CalculationType.timeDilation
-                      ? timeDilationPurple
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  children: [
-                    FaIcon(
-                      FontAwesomeIcons.clock,
+          // Relativity calculations row
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedType = CalculationType.timeDilation;
+                      _selectedUnit = 'years';
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
                       color: _selectedType == CalculationType.timeDilation
-                          ? textOnAccent
-                          : textSecondary,
+                          ? timeDilationPurple
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(height: 4),
-                    TextWidget(
-                      text: 'Time Dilation',
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: _selectedType == CalculationType.timeDilation
-                          ? textOnAccent
-                          : textSecondary,
+                    child: Column(
+                      children: [
+                        FaIcon(
+                          FontAwesomeIcons.clock,
+                          color: _selectedType == CalculationType.timeDilation
+                              ? textOnAccent
+                              : textSecondary,
+                        ),
+                        const SizedBox(height: 4),
+                        TextWidget(
+                          text: 'Time Dilation',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: _selectedType == CalculationType.timeDilation
+                              ? textOnAccent
+                              : textSecondary,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedType = CalculationType.lengthContraction;
+                      _selectedUnit = 'meters';
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: _selectedType == CalculationType.lengthContraction
+                          ? lengthContractionCyan
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        FaIcon(
+                          FontAwesomeIcons.ruler,
+                          color:
+                              _selectedType == CalculationType.lengthContraction
+                                  ? textOnAccent
+                                  : textSecondary,
+                        ),
+                        const SizedBox(height: 4),
+                        TextWidget(
+                          text: 'Length Contraction',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color:
+                              _selectedType == CalculationType.lengthContraction
+                                  ? textOnAccent
+                                  : textSecondary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedType = CalculationType.lengthContraction;
-                  _selectedUnit = 'meters';
-                });
-              },
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: _selectedType == CalculationType.lengthContraction
-                      ? lengthContractionCyan
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  children: [
-                    FaIcon(
-                      FontAwesomeIcons.ruler,
-                      color: _selectedType == CalculationType.lengthContraction
-                          ? textOnAccent
-                          : textSecondary,
+          const SizedBox(height: 8),
+          // Kinematics calculations row
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedType = CalculationType.displacement;
+                      _selectedUnit = 'meters';
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: _selectedType == CalculationType.displacement
+                          ? Colors.orange
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(height: 4),
-                    TextWidget(
-                      text: 'Length Contraction',
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: _selectedType == CalculationType.lengthContraction
-                          ? textOnAccent
-                          : textSecondary,
+                    child: Column(
+                      children: [
+                        FaIcon(
+                          FontAwesomeIcons.arrowsLeftRight,
+                          color: _selectedType == CalculationType.displacement
+                              ? textOnAccent
+                              : textSecondary,
+                        ),
+                        const SizedBox(height: 4),
+                        TextWidget(
+                          text: 'Displacement',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: _selectedType == CalculationType.displacement
+                              ? textOnAccent
+                              : textSecondary,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedType = CalculationType.velocity;
+                      _selectedUnit = 'm/s';
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: _selectedType == CalculationType.velocity
+                          ? Colors.green
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        FaIcon(
+                          FontAwesomeIcons.gaugeHigh,
+                          color: _selectedType == CalculationType.velocity
+                              ? textOnAccent
+                              : textSecondary,
+                        ),
+                        const SizedBox(height: 4),
+                        TextWidget(
+                          text: 'Velocity',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: _selectedType == CalculationType.velocity
+                              ? textOnAccent
+                              : textSecondary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Second row of kinematics calculations
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedType = CalculationType.acceleration;
+                      _selectedUnit = 'm/s²';
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: _selectedType == CalculationType.acceleration
+                          ? Colors.red
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        FaIcon(
+                          FontAwesomeIcons.rocket,
+                          color: _selectedType == CalculationType.acceleration
+                              ? textOnAccent
+                              : textSecondary,
+                        ),
+                        const SizedBox(height: 4),
+                        TextWidget(
+                          text: 'Acceleration',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: _selectedType == CalculationType.acceleration
+                              ? textOnAccent
+                              : textSecondary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedType = CalculationType.time;
+                      _selectedUnit = 'seconds';
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: _selectedType == CalculationType.time
+                          ? Colors.purple
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        FaIcon(
+                          FontAwesomeIcons.hourglassHalf,
+                          color: _selectedType == CalculationType.time
+                              ? textOnAccent
+                              : textSecondary,
+                        ),
+                        const SizedBox(height: 4),
+                        TextWidget(
+                          text: 'Time',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: _selectedType == CalculationType.time
+                              ? textOnAccent
+                              : textSecondary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -405,64 +648,197 @@ class _CalculatorScreenState extends State<CalculatorScreen>
   }
 
   Widget _buildInputFields() {
+    // For relativity calculations
+    if (_selectedType == CalculationType.timeDilation ||
+        _selectedType == CalculationType.lengthContraction) {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: AppTextFormField(
+                  controller: _inputController,
+                  labelText: _selectedType == CalculationType.timeDilation
+                      ? 'Proper Time'
+                      : 'Proper Length',
+                  textInputAction: TextInputAction.next,
+                  keyboardType: TextInputType.number,
+                  validator: _validateInput,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: DropdownButtonFormField<String>(
+                  value: _selectedUnit,
+                  decoration: InputDecoration(
+                    labelText: 'Unit',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  items: (_selectedType == CalculationType.timeDilation
+                          ? _timeUnits
+                          : _lengthUnits)
+                      .map((unit) => DropdownMenuItem(
+                            value: unit,
+                            child: Text(unit),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedUnit = value!;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          AppTextFormField(
+            textInputAction: TextInputAction.done,
+            controller: _velocityController,
+            labelText: 'Velocity (% of light speed)',
+            keyboardType: TextInputType.number,
+            validator: _validateVelocity,
+            suffixIcon: const Icon(Icons.speed),
+          ),
+        ],
+      );
+    }
+
+    // For kinematics calculations
+    List<String> units = [];
+    String inputLabel1 = '';
+    String inputLabel2 = '';
+    String inputLabel3 = '';
+
+    switch (_selectedType) {
+      case CalculationType.displacement:
+        units = _lengthUnits;
+        inputLabel1 = 'Initial Velocity';
+        inputLabel2 = 'Acceleration';
+        inputLabel3 = 'Time';
+        break;
+      case CalculationType.velocity:
+        units = _velocityUnits;
+        inputLabel1 = 'Initial Velocity';
+        inputLabel2 = 'Acceleration';
+        inputLabel3 = 'Time';
+        break;
+      case CalculationType.acceleration:
+        units = _accelerationUnits;
+        inputLabel1 = 'Initial Velocity';
+        inputLabel2 = 'Final Velocity';
+        inputLabel3 = 'Time';
+        break;
+      case CalculationType.time:
+        units = _timeUnits;
+        inputLabel1 = 'Initial Velocity';
+        inputLabel2 = 'Final Velocity';
+        inputLabel3 = 'Acceleration';
+        break;
+      default:
+        return Container(); // Should not happen
+    }
+
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              flex: 3,
-              child: AppTextFormField(
-                controller: _inputController,
-                labelText: _selectedType == CalculationType.timeDilation
-                    ? 'Proper Time'
-                    : 'Proper Length',
-                textInputAction: TextInputAction.next,
-                keyboardType: TextInputType.number,
-                validator: _validateInput,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: DropdownButtonFormField<String>(
-                value: _selectedUnit,
-                decoration: InputDecoration(
-                  labelText: 'Unit',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                items: (_selectedType == CalculationType.timeDilation
-                        ? _timeUnits
-                        : _lengthUnits)
-                    .map((unit) => DropdownMenuItem(
-                          value: unit,
-                          child: Text(unit),
-                        ))
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedUnit = value!;
-                  });
-                },
-              ),
-            ),
-          ],
+        // First input field
+        AppTextFormField(
+          controller: _initialVelocityController,
+          labelText: inputLabel1,
+          textInputAction: TextInputAction.next,
+          keyboardType: TextInputType.number,
+          validator: _validateInput,
         ),
         const SizedBox(height: 16),
+
+        // Second input field
         AppTextFormField(
-          textInputAction: TextInputAction.done,
-          controller: _velocityController,
-          labelText: 'Velocity (% of light speed)',
+          controller: _selectedType == CalculationType.displacement ||
+                  _selectedType == CalculationType.velocity
+              ? _accelerationController
+              : _finalVelocityController,
+          labelText: inputLabel2,
+          textInputAction: TextInputAction.next,
           keyboardType: TextInputType.number,
-          validator: _validateVelocity,
-          suffixIcon: const Icon(Icons.speed),
+          validator: _validateInput,
+        ),
+        const SizedBox(height: 16),
+
+        // Third input field
+        AppTextFormField(
+          controller: _selectedType == CalculationType.displacement ||
+                  _selectedType == CalculationType.velocity
+              ? _timeController
+              : _accelerationController,
+          labelText: inputLabel3,
+          textInputAction: TextInputAction.done,
+          keyboardType: TextInputType.number,
+          validator: _validateInput,
+        ),
+        const SizedBox(height: 16),
+
+        // Unit selector
+        DropdownButtonFormField<String>(
+          value: _selectedUnit,
+          decoration: InputDecoration(
+            labelText: 'Unit',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          items: units
+              .map((unit) => DropdownMenuItem(
+                    value: unit,
+                    child: Text(unit),
+                  ))
+              .toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedUnit = value!;
+            });
+          },
         ),
       ],
     );
   }
 
   Widget _buildResultsDisplay() {
+    // Determine colors and icons based on calculation type
+    Color primaryColor;
+    Color secondaryColor;
+    IconData icon;
+
+    if (_selectedType == CalculationType.timeDilation) {
+      primaryColor = timeDilationPurple;
+      secondaryColor = timeDilationPurple.withOpacity(0.2);
+      icon = FontAwesomeIcons.clock;
+    } else if (_selectedType == CalculationType.lengthContraction) {
+      primaryColor = lengthContractionCyan;
+      secondaryColor = lengthContractionCyan.withOpacity(0.2);
+      icon = FontAwesomeIcons.ruler;
+    } else if (_selectedType == CalculationType.displacement) {
+      primaryColor = Colors.orange;
+      secondaryColor = Colors.orange.withOpacity(0.2);
+      icon = FontAwesomeIcons.arrowsLeftRight;
+    } else if (_selectedType == CalculationType.velocity) {
+      primaryColor = Colors.green;
+      secondaryColor = Colors.green.withOpacity(0.2);
+      icon = FontAwesomeIcons.gaugeHigh;
+    } else if (_selectedType == CalculationType.acceleration) {
+      primaryColor = Colors.red;
+      secondaryColor = Colors.red.withOpacity(0.2);
+      icon = FontAwesomeIcons.rocket;
+    } else {
+      // time
+      primaryColor = Colors.purple;
+      secondaryColor = Colors.purple.withOpacity(0.2);
+      icon = FontAwesomeIcons.hourglassHalf;
+    }
+
     return FadeTransition(
       opacity: _fadeAnimation,
       child: SlideTransition(
@@ -472,23 +848,13 @@ class _CalculatorScreenState extends State<CalculatorScreen>
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: _selectedType == CalculationType.timeDilation
-                  ? [
-                      timeDilationPurple.withOpacity(0.2),
-                      timeDilationPurple.withOpacity(0.1)
-                    ]
-                  : [
-                      lengthContractionCyan.withOpacity(0.2),
-                      lengthContractionCyan.withOpacity(0.1)
-                    ],
+              colors: [secondaryColor, secondaryColor.withOpacity(0.5)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: _selectedType == CalculationType.timeDilation
-                  ? timeDilationPurple
-                  : lengthContractionCyan,
+              color: primaryColor,
               width: 2,
             ),
           ),
@@ -498,12 +864,8 @@ class _CalculatorScreenState extends State<CalculatorScreen>
               Row(
                 children: [
                   FaIcon(
-                    _selectedType == CalculationType.timeDilation
-                        ? FontAwesomeIcons.clock
-                        : FontAwesomeIcons.ruler,
-                    color: _selectedType == CalculationType.timeDilation
-                        ? timeDilationPurple
-                        : lengthContractionCyan,
+                    icon,
+                    color: primaryColor,
                   ),
                   const SizedBox(width: 8),
                   TextWidget(
@@ -532,18 +894,30 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                       color: textPrimary,
                     ),
                     const SizedBox(height: 8),
-                    TextWidget(
-                      text:
-                          'Input: ${_result!.inputValue.toStringAsFixed(2)} ${_result!.unit}',
-                      fontSize: 14,
-                      color: textSecondary,
-                    ),
-                    TextWidget(
-                      text:
-                          'Velocity: ${(_result!.velocity * 100).toStringAsFixed(1)}% of light speed',
-                      fontSize: 14,
-                      color: textSecondary,
-                    ),
+
+                    // Show different information based on calculation type
+                    if (_selectedType == CalculationType.timeDilation ||
+                        _selectedType == CalculationType.lengthContraction) ...[
+                      TextWidget(
+                        text:
+                            'Input: ${_result!.inputValue.toStringAsFixed(2)} ${_result!.unit}',
+                        fontSize: 14,
+                        color: textSecondary,
+                      ),
+                      TextWidget(
+                        text:
+                            'Velocity: ${(_result!.velocity * 100).toStringAsFixed(1)}% of light speed',
+                        fontSize: 14,
+                        color: textSecondary,
+                      ),
+                    ] else ...[
+                      // For kinematics calculations, show the formula
+                      TextWidget(
+                        text: 'Formula: ${_selectedType.formula}',
+                        fontSize: 14,
+                        color: textSecondary,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -630,6 +1004,41 @@ class _CalculatorScreenState extends State<CalculatorScreen>
   }
 
   Widget _buildHistoryItem(CalculationResult calc) {
+    // Determine icon and color based on calculation type
+    IconData icon;
+    Color iconColor;
+
+    if (calc.type == CalculationType.timeDilation) {
+      icon = FontAwesomeIcons.clock;
+      iconColor = timeDilationPurple;
+    } else if (calc.type == CalculationType.lengthContraction) {
+      icon = FontAwesomeIcons.ruler;
+      iconColor = lengthContractionCyan;
+    } else if (calc.type == CalculationType.displacement) {
+      icon = FontAwesomeIcons.arrowsLeftRight;
+      iconColor = Colors.orange;
+    } else if (calc.type == CalculationType.velocity) {
+      icon = FontAwesomeIcons.gaugeHigh;
+      iconColor = Colors.green;
+    } else if (calc.type == CalculationType.acceleration) {
+      icon = FontAwesomeIcons.rocket;
+      iconColor = Colors.red;
+    } else {
+      // time
+      icon = FontAwesomeIcons.hourglassHalf;
+      iconColor = Colors.purple;
+    }
+
+    // Format the subtitle based on calculation type
+    String subtitle;
+    if (calc.type == CalculationType.timeDilation ||
+        calc.type == CalculationType.lengthContraction) {
+      subtitle =
+          '${(calc.velocity * 100).toStringAsFixed(0)}%c • ${_formatDateTime(calc.timestamp)}';
+    } else {
+      subtitle = '${_formatDateTime(calc.timestamp)}';
+    }
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: const BoxDecoration(
@@ -640,12 +1049,8 @@ class _CalculatorScreenState extends State<CalculatorScreen>
       child: Row(
         children: [
           FaIcon(
-            calc.type == CalculationType.timeDilation
-                ? FontAwesomeIcons.clock
-                : FontAwesomeIcons.ruler,
-            color: calc.type == CalculationType.timeDilation
-                ? timeDilationPurple
-                : lengthContractionCyan,
+            icon,
+            color: iconColor,
             size: 16,
           ),
           const SizedBox(width: 12),
@@ -661,8 +1066,7 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                   color: textPrimary,
                 ),
                 TextWidget(
-                  text:
-                      '${(calc.velocity * 100).toStringAsFixed(0)}%c • ${_formatDateTime(calc.timestamp)}',
+                  text: subtitle,
                   fontSize: 12,
                   color: textSecondary,
                 ),
@@ -676,9 +1080,39 @@ class _CalculatorScreenState extends State<CalculatorScreen>
               setState(() {
                 _selectedType = calc.type;
                 _selectedUnit = calc.unit;
-                _inputController.text = calc.inputValue.toStringAsFixed(2);
-                _velocityController.text =
-                    (calc.velocity * 100).toStringAsFixed(1);
+
+                // Set appropriate input fields based on calculation type
+                if (calc.type == CalculationType.timeDilation ||
+                    calc.type == CalculationType.lengthContraction) {
+                  _inputController.text = calc.inputValue.toStringAsFixed(2);
+                  _velocityController.text =
+                      (calc.velocity * 100).toStringAsFixed(1);
+                } else {
+                  // For kinematics calculations, we need to set multiple fields
+                  // This is a simplified version - in a real app, we'd need to store all input values
+                  _initialVelocityController.text =
+                      calc.inputValue.toStringAsFixed(2);
+
+                  if (calc.type == CalculationType.displacement ||
+                      calc.type == CalculationType.velocity) {
+                    // For these types, velocity field stores acceleration
+                    _accelerationController.text =
+                        calc.velocity.toStringAsFixed(2);
+                    _timeController.text = "5.0"; // Default time
+                  } else if (calc.type == CalculationType.acceleration) {
+                    // For acceleration, velocity field stores final velocity
+                    _finalVelocityController.text =
+                        calc.velocity.toStringAsFixed(2);
+                    _timeController.text = "5.0"; // Default time
+                  } else {
+                    // time
+                    // For time, velocity field stores final velocity
+                    _finalVelocityController.text =
+                        calc.velocity.toStringAsFixed(2);
+                    _accelerationController.text =
+                        "2.0"; // Default acceleration
+                  }
+                }
               });
             },
           ),

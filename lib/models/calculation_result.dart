@@ -54,6 +54,10 @@ class CalculationResult {
 enum CalculationType {
   timeDilation,
   lengthContraction,
+  displacement,
+  velocity,
+  acceleration,
+  time,
 }
 
 extension CalculationTypeExtension on CalculationType {
@@ -63,6 +67,14 @@ extension CalculationTypeExtension on CalculationType {
         return 'Time Dilation';
       case CalculationType.lengthContraction:
         return 'Length Contraction';
+      case CalculationType.displacement:
+        return 'Displacement';
+      case CalculationType.velocity:
+        return 'Velocity';
+      case CalculationType.acceleration:
+        return 'Acceleration';
+      case CalculationType.time:
+        return 'Time';
     }
   }
 
@@ -72,6 +84,14 @@ extension CalculationTypeExtension on CalculationType {
         return 'Δt = Δt₀ / √(1 - v²/c²)';
       case CalculationType.lengthContraction:
         return 'L = L₀ × √(1 - v²/c²)';
+      case CalculationType.displacement:
+        return 's = ut + ½at²';
+      case CalculationType.velocity:
+        return 'v = u + at';
+      case CalculationType.acceleration:
+        return 'a = (v - u)/t';
+      case CalculationType.time:
+        return 't = (v - u)/a';
     }
   }
 
@@ -81,6 +101,14 @@ extension CalculationTypeExtension on CalculationType {
         return 'Time passes slower for objects moving at high speeds relative to a stationary observer.';
       case CalculationType.lengthContraction:
         return 'Objects appear shorter in the direction of motion when moving at high speeds.';
+      case CalculationType.displacement:
+        return 'Calculate displacement using initial velocity, acceleration, and time.';
+      case CalculationType.velocity:
+        return 'Calculate final velocity using initial velocity, acceleration, and time.';
+      case CalculationType.acceleration:
+        return 'Calculate acceleration using initial velocity, final velocity, and time.';
+      case CalculationType.time:
+        return 'Calculate time using initial velocity, final velocity, and acceleration.';
     }
   }
 }
